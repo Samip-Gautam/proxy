@@ -24,7 +24,23 @@ public class ProxyHandler implements Handler {
         System.out.println("Path: " + ctx.path());
         System.out.println("IP: " + ctx.ip());
 
-        HttpRequest httpRequest = HttpRequest.newBuilder().uri(URI.create(backendBase + ctx.path())).timeout(Duration.ofSeconds(4)).build();
+        String query = ctx.req().getQueryString();
+        String target = backendBase + ctx.path();
+        String method = ctx.req().getMethod();
+
+        target  = (query != null) ? target += "?" + query : target;
+
+        HttpRequest.Builder builder = HttpRequest.newBuilder().header("Secret", "KIIT")
+                        .uri(URI.create(target))
+                                . timeout(Duration.ofSeconds(3));
+
+
+        (method.equalsIgnoreCase("POST") ?
+                builder.POST(HttpRequest.BodyPublishers.ofByteArray(ctx.bodyAsBytes())):
+                builder.GET()).
+                build();
+
+        HttpRequest httpRequest = builder.build();
 
         ctx.future(() -> client.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofByteArray())
                 .thenAccept(response -> {
@@ -34,13 +50,12 @@ public class ProxyHandler implements Handler {
                     if (e.getCause() instanceof HttpConnectTimeoutException) {
                         ctx.status(504);
                         ctx.result("Timeout");
-                        return null;
                     }
                     else {
                         ctx.status(502);
                         ctx.result("Bad Gateway");
-                        return null;
                     }
+                    return null;
                 })
         );
     }
